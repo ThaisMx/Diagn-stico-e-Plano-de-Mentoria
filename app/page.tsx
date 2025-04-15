@@ -222,6 +222,9 @@ export default function DiagnosticPage() {
                   3. 5 próximos passos imediatos e práticos
                 `
 
+                console.log('Enviando requisição para OpenAI...')
+                console.log('API Key:', process.env.NEXT_PUBLIC_OPENAI_API_KEY?.substring(0, 10) + '...')
+
                 const response = await fetch('https://api.openai.com/v1/chat/completions', {
                   method: 'POST',
                   headers: {
@@ -234,7 +237,7 @@ export default function DiagnosticPage() {
                       {
                         role: 'system',
                         content: `Você é um consultor especializado em análise organizacional. 
-                        Forneça análises objetivas e práticas no seguinte formato JSON:
+                        Forneça análises objetivas e práticas APENAS no seguinte formato JSON, sem usar marcadores Markdown ou qualquer outro texto:
                         {
                           "swot": {
                             "strengths": "texto detalhando os pontos fortes",
@@ -244,8 +247,7 @@ export default function DiagnosticPage() {
                           },
                           "recommendations": ["rec1", "rec2", "rec3", "rec4", "rec5"],
                           "nextSteps": ["step1", "step2", "step3", "step4", "step5"]
-                        }
-                        Responda APENAS com o JSON, sem texto adicional.`
+                        }`
                       },
                       {
                         role: 'user',
@@ -257,12 +259,37 @@ export default function DiagnosticPage() {
                 })
 
                 if (!response.ok) {
-                  throw new Error('Erro na chamada da API')
+                  const errorData = await response.json().catch(() => null)
+                  console.error('Erro na resposta da API:', {
+                    status: response.status,
+                    statusText: response.statusText,
+                    error: errorData
+                  })
+                  throw new Error(`Erro na chamada da API: ${response.status} ${response.statusText}`)
                 }
 
+                console.log('Resposta recebida da OpenAI')
                 const data = await response.json()
+                console.log('Dados recebidos:', data)
+
+                if (!data.choices?.[0]?.message?.content) {
+                  console.error('Resposta inválida da API:', data)
+                  throw new Error('Resposta inválida da API')
+                }
+
                 const jsonResponse = data.choices[0].message.content
-                const analysisResult = JSON.parse(jsonResponse)
+                console.log('Conteúdo da resposta:', jsonResponse)
+
+                // Limpar a resposta removendo marcadores Markdown
+                const cleanJsonResponse = jsonResponse
+                  .replace(/```json\n/, '') // Remove ```json do início
+                  .replace(/```$/, '')      // Remove ``` do final
+                  .trim()                   // Remove espaços em branco extras
+
+                console.log('JSON limpo:', cleanJsonResponse)
+                
+                const analysisResult = JSON.parse(cleanJsonResponse)
+                console.log('Análise parseada:', analysisResult)
 
                 setAnalysis(analysisResult)
 
